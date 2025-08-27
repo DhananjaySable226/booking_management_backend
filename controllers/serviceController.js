@@ -25,7 +25,11 @@ exports.getServices = asyncHandler(async (req, res, next) => {
   queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, match => `$${match}`);
 
   // Finding resource
-  query = Service.find(JSON.parse(queryStr)).populate('provider', 'name email avatar');
+  // For public/users -> show only active services; for admins/providers -> show all
+  const parsedQuery = JSON.parse(queryStr);
+  const shouldRestrictToActive = !req.user || req.user.role === 'user';
+  const queryObj = shouldRestrictToActive ? { ...parsedQuery, isActive: true } : parsedQuery;
+  query = Service.find(queryObj).populate('provider', 'firstName lastName email phone');
 
   // Select Fields
   if (req.query.select) {
@@ -46,7 +50,7 @@ exports.getServices = asyncHandler(async (req, res, next) => {
   const limit = parseInt(req.query.limit, 10) || 12;
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-  const total = await Service.countDocuments();
+  const total = await Service.countDocuments(shouldRestrictToActive ? { isActive: true } : {});
 
   query = query.skip(startIndex).limit(limit);
 
@@ -83,8 +87,8 @@ exports.getServices = asyncHandler(async (req, res, next) => {
 // @access  Public
 exports.getService = asyncHandler(async (req, res, next) => {
   const service = await Service.findById(req.params.id)
-    .populate('provider', 'name email avatar phone')
-    .populate('reviews.user', 'name avatar');
+    .populate('provider', 'firstName lastName email phone')
+    .populate('reviews.user', 'firstName lastName');
 
   if (!service) {
     return next(new ErrorResponse(`Service not found with id of ${req.params.id}`, 404));
@@ -100,15 +104,23 @@ exports.getService = asyncHandler(async (req, res, next) => {
 // @route   POST /api/services
 // @access  Private
 exports.createService = asyncHandler(async (req, res, next) => {
-  // Add user to req.body
-  req.body.provider = req.user.id;
+  try {
+    // Add user to req.body
+    req.body.provider = req.user.id;
 
-  const service = await Service.create(req.body);
+    // Drop any problematic indexes before creating
+    await Service.dropProblematicIndexes();
 
-  res.status(201).json({
-    success: true,
-    data: service
-  });
+    const service = await Service.create(req.body);
+
+    res.status(201).json({
+      success: true,
+      data: service
+    });
+  } catch (error) {
+    console.error('Error creating service:', error);
+    throw error;
+  }
 });
 
 // @desc    Update service
@@ -152,7 +164,7 @@ exports.deleteService = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`User ${req.user.id} is not authorized to delete this service`, 401));
   }
 
-  await service.remove();
+  await service.deleteOne();
 
   res.status(200).json({
     success: true,
@@ -166,19 +178,11 @@ exports.deleteService = asyncHandler(async (req, res, next) => {
 exports.getServicesInRadius = asyncHandler(async (req, res, next) => {
   const { zipcode, distance } = req.params;
 
-  // Get lat/lng from geocoder
-  const loc = await geocoder.geocode(zipcode);
-  const lat = loc[0].latitude;
-  const lng = loc[0].longitude;
-
-  // Calc radius using radians
-  // Divide dist by radius of Earth
-  // Earth Radius = 3,963 mi / 6,378 km
-  const radius = distance / 3963;
-
+  // For now, return services by zipcode since we don't have geospatial data
   const services = await Service.find({
-    location: { $geoWithin: { $centerSphere: [[lng, lat], radius] } }
-  });
+    'location.zipCode': zipcode,
+    isActive: true
+  }).populate('provider', 'firstName lastName email phone');
 
   res.status(200).json({
     success: true,
@@ -265,21 +269,21 @@ exports.searchServices = asyncHandler(async (req, res, next) => {
 
   // Filter by price range
   if (minPrice || maxPrice) {
-    query.price = {};
-    if (minPrice) query.price.$gte = parseFloat(minPrice);
-    if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+    query['price.amount'] = {};
+    if (minPrice) query['price.amount'].$gte = parseFloat(minPrice);
+    if (maxPrice) query['price.amount'].$lte = parseFloat(maxPrice);
   }
 
   // Filter by rating
   if (rating) {
-    query.rating = { $gte: parseFloat(rating) };
+    query['rating.average'] = { $gte: parseFloat(rating) };
   }
 
   // Only show active services
   query.isActive = true;
 
   const services = await Service.find(query)
-    .populate('provider', 'name email avatar')
+    .populate('provider', 'firstName lastName email phone')
     .sort('-createdAt');
 
   res.status(200).json({
@@ -293,10 +297,10 @@ exports.searchServices = asyncHandler(async (req, res, next) => {
 // @route   GET /api/services/category/:category
 // @access  Public
 exports.getServicesByCategory = asyncHandler(async (req, res, next) => {
-  const services = await Service.find({ 
+  const services = await Service.find({
     category: req.params.category,
-    isActive: true 
-  }).populate('provider', 'name email avatar');
+    isActive: true
+  }).populate('provider', 'firstName lastName email phone');
 
   res.status(200).json({
     success: true,
@@ -309,13 +313,13 @@ exports.getServicesByCategory = asyncHandler(async (req, res, next) => {
 // @route   GET /api/services/featured
 // @access  Public
 exports.getFeaturedServices = asyncHandler(async (req, res, next) => {
-  const services = await Service.find({ 
+  const services = await Service.find({
     isFeatured: true,
-    isActive: true 
+    isActive: true
   })
-    .populate('provider', 'name email avatar')
+    .populate('provider', 'firstName lastName email phone')
     .limit(6)
-    .sort('-rating');
+    .sort('-rating.average');
 
   res.status(200).json({
     success: true,
@@ -352,7 +356,8 @@ exports.addServiceReview = asyncHandler(async (req, res, next) => {
   service.reviews.push(review);
 
   // Update average rating
-  service.rating = service.reviews.reduce((acc, item) => item.rating + acc, 0) / service.reviews.length;
+  service.rating.average = service.reviews.reduce((acc, item) => item.rating + acc, 0) / service.reviews.length;
+  service.rating.count = service.reviews.length;
 
   await service.save();
 
@@ -390,10 +395,10 @@ exports.updateServiceAvailability = asyncHandler(async (req, res, next) => {
 // @route   GET /api/services/provider/:providerId
 // @access  Public
 exports.getProviderServices = asyncHandler(async (req, res, next) => {
-  const services = await Service.find({ 
+  const services = await Service.find({
     provider: req.params.providerId,
-    isActive: true 
-  }).populate('provider', 'name email avatar');
+    isActive: true
+  }).populate('provider', 'firstName lastName email phone');
 
   res.status(200).json({
     success: true,

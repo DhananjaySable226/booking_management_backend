@@ -46,8 +46,8 @@ app.use('/uploads', express.static('uploads'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
+  res.status(200).json({
+    status: 'OK',
     message: 'Booking Management System API is running',
     timestamp: new Date().toISOString()
   });
@@ -63,9 +63,9 @@ app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({ 
-    success: false, 
-    message: 'Route not found' 
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
   });
 });
 
@@ -92,6 +92,15 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
+
+  // Drop problematic indexes on startup
+  try {
+    const Service = require('./models/Service');
+    await Service.dropProblematicIndexes();
+  } catch (error) {
+    console.log('Error dropping indexes on startup:', error.message);
+  }
+
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV}`);

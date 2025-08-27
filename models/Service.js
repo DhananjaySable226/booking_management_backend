@@ -29,11 +29,11 @@ const serviceSchema = new mongoose.Schema({
     images: [{
         public_id: {
             type: String,
-            required: true
+            required: false
         },
         url: {
             type: String,
-            required: true
+            required: false
         }
     }],
     price: {
@@ -66,14 +66,13 @@ const serviceSchema = new mongoose.Schema({
             type: String,
             required: [true, 'State is required']
         },
-        zipCode: String,
+        zipCode: {
+            type: String,
+            required: false
+        },
         country: {
             type: String,
             required: [true, 'Country is required']
-        },
-        coordinates: {
-            latitude: Number,
-            longitude: Number
         }
     },
     availability: {
@@ -111,7 +110,8 @@ const serviceSchema = new mongoose.Schema({
     }],
     specifications: {
         type: Map,
-        of: String
+        of: String,
+        default: new Map()
     },
     rating: {
         average: {
@@ -165,7 +165,8 @@ const serviceSchema = new mongoose.Schema({
     },
     cancellationHours: {
         type: Number,
-        default: 24
+        default: 24,
+        min: 0
     },
     insurance: {
         isRequired: {
@@ -194,15 +195,17 @@ const serviceSchema = new mongoose.Schema({
 // Indexes for better query performance
 serviceSchema.index({ category: 1, isActive: 1 });
 serviceSchema.index({ provider: 1 });
-serviceSchema.index({ location: '2dsphere' });
+serviceSchema.index({ 'location.city': 1 });
+serviceSchema.index({ 'location.state': 1 });
 serviceSchema.index({ tags: 1 });
 serviceSchema.index({ isFeatured: 1, isActive: 1 });
 serviceSchema.index({ 'price.amount': 1 });
-serviceSchema.index({ rating: -1 });
+serviceSchema.index({ 'rating.average': -1 });
 
 // Virtual for full address
 serviceSchema.virtual('fullAddress').get(function () {
-    return `${this.location.address}, ${this.location.city}, ${this.location.state} ${this.location.zipCode}, ${this.location.country}`;
+    const zipCode = this.location.zipCode ? ` ${this.location.zipCode}` : '';
+    return `${this.location.address}, ${this.location.city}, ${this.location.state}${zipCode}, ${this.location.country}`;
 });
 
 // Method to update average rating
@@ -224,6 +227,24 @@ serviceSchema.pre('save', function (next) {
     }
     next();
 });
+
+// Static method to drop problematic indexes
+serviceSchema.statics.dropProblematicIndexes = async function () {
+    try {
+        const collection = this.collection;
+        const indexes = await collection.indexes();
+
+        for (const index of indexes) {
+            if (index.key && index.key.location === '2dsphere') {
+                console.log('Dropping 2dsphere index on location field');
+                await collection.dropIndex(index.name);
+            }
+        }
+        console.log('Problematic indexes dropped successfully');
+    } catch (error) {
+        console.log('No problematic indexes found or error dropping indexes:', error.message);
+    }
+};
 
 // Static method to get services by category
 serviceSchema.statics.getByCategory = function (category, limit = 10) {
@@ -255,7 +276,7 @@ serviceSchema.statics.search = function (query, filters = {}) {
 
     return this.find(searchQuery)
         .populate('provider', 'firstName lastName email phone')
-        .sort({ rating: -1, createdAt: -1 });
+        .sort({ 'rating.average': -1, createdAt: -1 });
 };
 
 module.exports = mongoose.model('Service', serviceSchema);
