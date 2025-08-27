@@ -96,9 +96,9 @@ exports.getBooking = asyncHandler(async (req, res, next) => {
   }
 
   // Make sure user owns booking or is admin/provider
-  if (booking.user._id.toString() !== req.user.id && 
-      booking.provider._id.toString() !== req.user.id && 
-      req.user.role !== 'admin') {
+  if (booking.user._id.toString() !== req.user.id &&
+    booking.provider._id.toString() !== req.user.id &&
+    req.user.role !== 'admin') {
     return next(new ErrorResponse(`User ${req.user.id} is not authorized to access this booking`, 401));
   }
 
@@ -138,9 +138,12 @@ exports.createBooking = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Selected time slot is not available', 400));
   }
 
-  // Calculate total amount
-  const duration = req.body.duration || 1;
-  const totalAmount = service.price * duration;
+  // Calculate total amount (support both numeric and object price)
+  const duration = Number(req.body.duration) || 1;
+  const serviceUnitPrice = (service && service.price && typeof service.price === 'object')
+    ? Number(service.price.amount || 0)
+    : Number(service?.price || 0);
+  const totalAmount = serviceUnitPrice * duration;
 
   const bookingData = {
     ...req.body,
@@ -170,9 +173,9 @@ exports.updateBooking = asyncHandler(async (req, res, next) => {
   }
 
   // Make sure user owns booking or is admin/provider
-  if (booking.user.toString() !== req.user.id && 
-      booking.provider.toString() !== req.user.id && 
-      req.user.role !== 'admin') {
+  if (booking.user.toString() !== req.user.id &&
+    booking.provider.toString() !== req.user.id &&
+    req.user.role !== 'admin') {
     return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this booking`, 401));
   }
 
@@ -258,9 +261,9 @@ exports.cancelBooking = asyncHandler(async (req, res, next) => {
   }
 
   // Make sure user owns booking or is admin/provider
-  if (booking.user.toString() !== req.user.id && 
-      booking.provider.toString() !== req.user.id && 
-      req.user.role !== 'admin') {
+  if (booking.user.toString() !== req.user.id &&
+    booking.provider.toString() !== req.user.id &&
+    req.user.role !== 'admin') {
     return next(new ErrorResponse(`User ${req.user.id} is not authorized to cancel this booking`, 401));
   }
 
