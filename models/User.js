@@ -79,6 +79,7 @@ const userSchema = new mongoose.Schema({
         language: { type: String, default: 'en' },
         timezone: { type: String, default: 'UTC' }
     },
+    favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service', default: [] }],
     stripeCustomerId: {
         type: String,
         default: null

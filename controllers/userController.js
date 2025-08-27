@@ -1,6 +1,9 @@
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -395,4 +398,112 @@ exports.bulkDeleteUsers = asyncHandler(async (req, res, next) => {
       deletedCount: result.deletedCount
     }
   });
+});
+
+
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Multer configuration for handling file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Check if file is an image
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+});
+
+exports.uploadImage = asyncHandler(async (req, res, next) => {
+  try {
+    // Check if file was uploaded
+    if (!req.file) {
+      return next(new ErrorResponse('Please upload an image file', 400));
+    }
+
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'image',
+          folder: 'uploads', // Optional: organize images in folders
+          transformation: [
+            { width: 800, height: 600, crop: 'limit' }, // Optional: resize image
+            { quality: 'auto' }, // Auto optimize quality
+            { fetch_format: 'auto' } // Auto optimize format
+          ]
+        },
+        (error, result) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(result);
+          }
+        }
+      ).end(req.file.buffer);
+    });
+
+
+    res.status(200).json({
+      success: true,
+      data: {
+        public_id: result.public_id,
+        url: result.secure_url,
+        width: result.width,
+        height: result.height,
+        format: result.format,
+        resource_type: result.resource_type,
+        created_at: result.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    return next(new ErrorResponse('Image upload failed', 500));
+  }
+});
+
+// Export the multer middleware for use in routes
+exports.uploadMiddleware = upload.single('image');
+
+// Favorites controllers
+exports.getMyFavorites = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.user.id).populate({ path: 'favorites', select: 'name images price location rating' });
+  if (!user) return next(new ErrorResponse('User not found', 404));
+  res.status(200).json({ success: true, data: user.favorites || [] });
+});
+
+exports.addFavorite = asyncHandler(async (req, res, next) => {
+  const { serviceId } = req.params;
+  if (!serviceId) return next(new ErrorResponse('Service ID is required', 400));
+  const user = await User.findById(req.user.id);
+  if (!user) return next(new ErrorResponse('User not found', 404));
+  const exists = user.favorites.some(id => id.toString() === serviceId);
+  if (!exists) {
+    user.favorites.push(serviceId);
+    await user.save();
+  }
+  res.status(200).json({ success: true, data: user.favorites });
+});
+
+exports.removeFavorite = asyncHandler(async (req, res, next) => {
+  const { serviceId } = req.params;
+  if (!serviceId) return next(new ErrorResponse('Service ID is required', 400));
+  const user = await User.findById(req.user.id);
+  if (!user) return next(new ErrorResponse('User not found', 404));
+  user.favorites = (user.favorites || []).filter(id => id.toString() !== serviceId);
+  await user.save();
+  res.status(200).json({ success: true, data: user.favorites });
 });

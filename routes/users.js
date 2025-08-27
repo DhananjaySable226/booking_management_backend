@@ -15,7 +15,12 @@ const {
   exportUsers,
   bulkUpdateUsers,
   bulkDeleteUsers,
-  getUserStats
+  getUserStats,
+  uploadImage,
+  getMyFavorites,
+  addFavorite,
+  removeFavorite
+
 } = require('../controllers/userController');
 
 const router = express.Router();
@@ -71,6 +76,12 @@ router.put('/:id/role', authorize('admin'), updateUserRole);
 router.put('/:id/toggle-active', authorize('admin'), toggleUserActive);
 router.put('/:id/verify-email', authorize('admin'), verifyUserEmail);
 router.put('/bulk-update', authorize('admin'), bulkUpdateUsers);
+router.post('/upload-image', authorize('admin'), uploadImage)
+
+// Favorites (self)
+router.get('/me/favorites', getMyFavorites);
+router.post('/me/favorites/:serviceId', addFavorite);
+router.delete('/me/favorites/:serviceId', removeFavorite);
 
 router.delete('/:id', authorize('admin'), deleteUser);
 router.delete('/bulk-delete', authorize('admin'), bulkDeleteUsers);

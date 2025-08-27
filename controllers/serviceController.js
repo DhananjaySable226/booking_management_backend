@@ -2,6 +2,9 @@ const Service = require('../models/Service');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+const path = require('path');
 
 // @desc    Get all services
 // @route   GET /api/services
@@ -238,6 +241,79 @@ exports.servicePhotoUpload = asyncHandler(async (req, res, next) => {
       data: file.name
     });
   });
+});
+
+// Configure Cloudinary (ensure env vars are set)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Multer configuration for handling multiple image uploads in memory
+const memoryStorage = multer.memoryStorage();
+const upload = multer({
+  storage: memoryStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
+// Export middleware to be used in routes for array uploads
+exports.uploadImagesMiddleware = upload.array('image');
+
+// @desc    Upload multiple images to Cloudinary for services
+// @route   POST /api/services/upload-image
+// @access  Private (Service Provider, Admin)
+exports.uploadServiceImages = asyncHandler(async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return next(new ErrorResponse('Please upload at least one image file', 400));
+    }
+
+    const uploadOne = (fileBuffer) =>
+      new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: 'image',
+            folder: 'services',
+            transformation: [
+              { width: 1600, height: 1200, crop: 'limit' },
+              { quality: 'auto' },
+              { fetch_format: 'auto' },
+            ],
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            return resolve({
+              public_id: result.public_id,
+              url: result.secure_url,
+              width: result.width,
+              height: result.height,
+              format: result.format,
+              resource_type: result.resource_type,
+              created_at: result.created_at,
+            });
+          }
+        );
+        stream.end(fileBuffer);
+      });
+
+    const uploads = await Promise.all(req.files.map((file) => uploadOne(file.buffer)));
+
+    res.status(200).json({
+      success: true,
+      images: uploads,
+    });
+  } catch (error) {
+    console.error('Cloudinary upload error (services):', error);
+    return next(new ErrorResponse('Image upload failed', 500));
+  }
 });
 
 // @desc    Search services

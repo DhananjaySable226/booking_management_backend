@@ -15,7 +15,9 @@ const {
   servicePhotoUpload,
   getServicesInRadius,
   getProviderServices,
-  getServiceStats
+  getServiceStats,
+  uploadServiceImages,
+  uploadImagesMiddleware
 } = require('../controllers/serviceController');
 
 const router = express.Router();
@@ -116,6 +118,7 @@ router.put('/:id/availability', authorize('service_provider', 'admin'), updateSe
 
 // Image upload routes
 router.put('/:id/photo', authorize('service_provider', 'admin'), servicePhotoUpload);
+router.post('/upload-image', authorize('service_provider', 'admin'), uploadImagesMiddleware, uploadServiceImages);
 
 // Additional service routes
 router.get('/radius/:zipcode/:distance', getServicesInRadius);
