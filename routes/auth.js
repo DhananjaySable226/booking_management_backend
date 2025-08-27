@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const {
   register,
   login,
@@ -104,6 +104,11 @@ const checkValidation = (req, res, next) => {
 
 // Public routes
 router.post('/register', registerValidation, checkValidation, register);
+// Admin can create service_provider accounts
+router.post('/register/service-provider', protect, authorize('admin'), registerValidation, checkValidation, (req, res, next) => {
+  req.body.role = 'service_provider';
+  next();
+}, register);
 router.post('/login', loginValidation, checkValidation, login);
 router.post('/forgot-password', forgotPasswordValidation, checkValidation, forgotPassword);
 router.post('/reset-password', resetPasswordValidation, checkValidation, resetPassword);
