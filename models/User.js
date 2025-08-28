@@ -84,6 +84,10 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    razorpayCustomerId: {
+        type: String,
+        default: null
+    },
     lastLogin: {
         type: Date,
         default: null

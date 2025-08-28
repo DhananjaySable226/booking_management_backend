@@ -15,13 +15,27 @@ const PaymentSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    // Razorpay specific fields
+    razorpayOrderId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    razorpayPaymentId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    razorpaySignature: {
+        type: String
+    },
     amount: {
         type: Number,
         required: true
     },
     currency: {
         type: String,
-        default: 'usd'
+        default: 'INR' // Changed default to INR for Razorpay
     },
     status: {
         type: String,
@@ -30,8 +44,8 @@ const PaymentSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['card', 'bank_transfer', 'wallet', 'cash'],
-        default: 'card'
+        enum: ['card', 'bank_transfer', 'wallet', 'cash', 'razorpay', 'upi', 'netbanking'],
+        default: 'razorpay' // Changed default to razorpay
     },
     paymentMethodId: {
         type: String

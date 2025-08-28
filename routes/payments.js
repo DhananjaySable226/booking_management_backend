@@ -2,37 +2,42 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { protect, authorize } = require('../middleware/auth');
 const {
-  createPaymentIntent,
-  confirmPayment,
   getPaymentHistory,
   getPaymentDetails,
-  refundPayment,
-  createStripeCustomer,
-  getPaymentMethods,
-  addPaymentMethod,
-  updatePaymentMethod,
-  deletePaymentMethod,
-  setDefaultPaymentMethod,
   getPaymentStats,
   getAllPayments,
-  exportPayments,
-  handleWebhook
+  exportPayments
 } = require('../controllers/paymentController');
+
+// Import Razorpay controllers
+const {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+  getRazorpayPaymentDetails,
+  refundRazorpayPayment,
+  handleRazorpayWebhook,
+  getRazorpayPaymentMethods,
+  createRazorpayCustomer
+} = require('../controllers/razorpayController');
 
 const router = express.Router();
 
-// Validation middleware
-const paymentIntentValidation = [
-  body('bookingId')
-    .isMongoId()
-    .withMessage('Valid booking ID is required'),
+const razorpayOrderValidation = [
   body('amount')
-    .isFloat({ min: 0.01 })
-    .withMessage('Valid amount is required'),
+    .isFloat({ min: 1 })
+    .withMessage('Valid amount is required (minimum 1)'),
   body('currency')
     .optional()
-    .isIn(['USD', 'EUR', 'GBP', 'INR'])
-    .withMessage('Invalid currency')
+    .isIn(['INR', 'USD', 'EUR', 'GBP'])
+    .withMessage('Invalid currency'),
+  body('receipt')
+    .optional()
+    .isString()
+    .withMessage('Receipt must be a string'),
+  body('notes')
+    .optional()
+    .isObject()
+    .withMessage('Notes must be an object')
 ];
 
 const refundValidation = [
@@ -59,28 +64,25 @@ const checkValidation = (req, res, next) => {
   next();
 };
 
-// Public routes (webhook)
-router.post('/webhook', handleWebhook);
+// Public routes (webhooks)
+router.post('/razorpay/webhook', handleRazorpayWebhook);
+
+// Public Razorpay routes
+router.get('/razorpay/payment-methods', getRazorpayPaymentMethods);
 
 // All other routes are protected
 router.use(protect);
 
-// Payment routes
-router.post('/create-payment-intent', authorize('user'), paymentIntentValidation, checkValidation, createPaymentIntent);
-router.post('/confirm-payment', authorize('user'), confirmPayment);
+// Razorpay routes
+router.post('/razorpay/create-order', authorize('user'), razorpayOrderValidation, checkValidation, createRazorpayOrder);
+router.post('/razorpay/verify', authorize('user'), verifyRazorpayPayment);
+router.get('/razorpay/:paymentId', authorize('user', 'admin'), getRazorpayPaymentDetails);
+router.post('/razorpay/:paymentId/refund', authorize('admin'), refundValidation, checkValidation, refundRazorpayPayment);
+router.post('/razorpay/customer', authorize('user'), createRazorpayCustomer);
+
+// Generic payment data routes
 router.get('/history', authorize('user'), getPaymentHistory);
 router.get('/:paymentId', authorize('user', 'admin'), getPaymentDetails);
-router.post('/:paymentId/refund', authorize('admin'), refundValidation, checkValidation, refundPayment);
-
-// Payment methods
-router.get('/payment-methods', authorize('user'), getPaymentMethods);
-router.post('/payment-methods', authorize('user'), addPaymentMethod);
-router.put('/payment-method/:id', authorize('user'), updatePaymentMethod);
-router.delete('/payment-methods/:id', authorize('user'), deletePaymentMethod);
-router.put('/payment-methods/:id/default', authorize('user'), setDefaultPaymentMethod);
-
-// Customer management
-router.post('/customer', authorize('user'), createStripeCustomer);
 
 // Admin routes
 router.get('/stats', authorize('admin'), getPaymentStats);
