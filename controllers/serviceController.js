@@ -483,6 +483,21 @@ exports.getProviderServices = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Get current user's services (for service providers)
+// @route   GET /api/services/provider/my-services
+// @access  Private (Service Provider)
+exports.getMyServices = asyncHandler(async (req, res, next) => {
+  const services = await Service.find({
+    provider: req.user.id
+  }).populate('provider', 'firstName lastName email phone');
+
+  res.status(200).json({
+    success: true,
+    count: services.length,
+    data: services
+  });
+});
+
 // @desc    Get service statistics
 // @route   GET /api/services/stats
 // @access  Private (Admin)

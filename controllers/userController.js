@@ -495,7 +495,9 @@ exports.addFavorite = asyncHandler(async (req, res, next) => {
     user.favorites.push(serviceId);
     await user.save();
   }
-  res.status(200).json({ success: true, data: user.favorites });
+  // Return populated favorites to match getMyFavorites response
+  const updatedUser = await User.findById(req.user.id).populate({ path: 'favorites', select: 'name images price location rating' });
+  res.status(200).json({ success: true, data: updatedUser.favorites || [] });
 });
 
 exports.removeFavorite = asyncHandler(async (req, res, next) => {
@@ -505,5 +507,7 @@ exports.removeFavorite = asyncHandler(async (req, res, next) => {
   if (!user) return next(new ErrorResponse('User not found', 404));
   user.favorites = (user.favorites || []).filter(id => id.toString() !== serviceId);
   await user.save();
-  res.status(200).json({ success: true, data: user.favorites });
+  // Return populated favorites to match getMyFavorites response
+  const updatedUser = await User.findById(req.user.id).populate({ path: 'favorites', select: 'name images price location rating' });
+  res.status(200).json({ success: true, data: updatedUser.favorites || [] });
 });
