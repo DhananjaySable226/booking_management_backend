@@ -15,6 +15,7 @@ const {
   servicePhotoUpload,
   getServicesInRadius,
   getProviderServices,
+  getMyServices,
   getServiceStats,
   uploadServiceImages,
   uploadImagesMiddleware
@@ -122,6 +123,8 @@ router.post('/upload-image', authorize('service_provider', 'admin'), uploadImage
 
 // Additional service routes
 router.get('/radius/:zipcode/:distance', getServicesInRadius);
+// Place the static route BEFORE the dynamic one to avoid shadowing
+router.get('/provider/my-services', authorize('service_provider'), getMyServices);
 router.get('/provider/:providerId', getProviderServices);
 router.get('/stats', authorize('admin'), getServiceStats);
 

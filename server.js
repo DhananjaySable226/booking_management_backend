@@ -23,18 +23,22 @@ const app = express();
 app.use(helmet());
 app.use(compression());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
+// Rate limiting (disable in development to avoid noisy 429s)
+if (process.env.NODE_ENV === 'production') {
+  const limiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // requests per window per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many requests from this IP, please try again later.'
+  });
+  app.use('/api/', limiter);
+}
 
 // CORS configuration - allow dev origins (5173 for Vite, 3000 for CRA) and env override
 const allowedOrigins = [
-  process.env.CORS_ORIGIN || 'http://localhost:3000',
-  'http://localhost:5173'
+  process.env.CORS_ORIGIN || 'https://b-management.netlify.app',
+  'https://b-management.netlify.app'
 ];
 app.use(cors({
   origin: function (origin, callback) {
@@ -84,7 +88,6 @@ app.use(errorHandler);
 // Database connection
 const connectDB = async () => {
   try {
-    console.log(process.env.MONGODB_URI);
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
