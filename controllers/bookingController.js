@@ -223,7 +223,7 @@ exports.deleteBooking = asyncHandler(async (req, res, next) => {
 // @access  Private
 exports.getUserBookings = asyncHandler(async (req, res, next) => {
   let bookings;
-  
+
   if (req.user.role === 'service_provider') {
     // For service providers, get bookings where they are the provider
     bookings = await Booking.find({ provider: req.user.id })
