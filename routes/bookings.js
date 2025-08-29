@@ -93,8 +93,8 @@ router.get('/check-availability/:serviceId', checkAvailability);
 // All other routes are protected
 router.use(protect);
 
-// User routes
-router.get('/my-bookings', authorize('user'), getUserBookings);
+// User and provider routes
+router.get('/my-bookings', authorize('user', 'service_provider'), getUserBookings);
 router.post('/', authorize('user'), createBookingValidation, checkValidation, createBooking);
 router.get('/:id', authorize('user', 'service_provider', 'admin'), getBooking);
 router.put('/:id', authorize('user', 'service_provider', 'admin'), updateBookingValidation, checkValidation, updateBooking);

@@ -37,8 +37,8 @@ if (process.env.NODE_ENV === 'production') {
 
 // CORS configuration - allow dev origins (5173 for Vite, 3000 for CRA) and env override
 const allowedOrigins = [
-  process.env.CORS_ORIGIN || 'https://b-management.netlify.app',
-  'https://b-management.netlify.app'
+  process.env.CORS_ORIGIN || 'http://localhost:3000',
+  'http://localhost:5173'
 ];
 app.use(cors({
   origin: function (origin, callback) {

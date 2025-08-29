@@ -125,7 +125,7 @@ exports.verifyRazorpayPayment = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: updatedPayment
+      payment: updatedPayment
     });
   } catch (error) {
     console.error('Razorpay payment verification error:', error);
@@ -144,7 +144,7 @@ exports.getRazorpayPaymentDetails = asyncHandler(async (req, res, next) => {
     
     res.status(200).json({
       success: true,
-      data: payment
+      payment: payment
     });
   } catch (error) {
     console.error('Razorpay payment fetch error:', error);
@@ -193,10 +193,8 @@ exports.refundRazorpayPayment = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        payment,
-        refund
-      }
+      payment: payment,
+      refund: refund
     });
   } catch (error) {
     console.error('Razorpay refund error:', error);
@@ -333,7 +331,7 @@ exports.getRazorpayPaymentMethods = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: paymentMethods
+      paymentMethods: paymentMethods
     });
   } catch (error) {
     console.error('Error fetching payment methods:', error);
@@ -365,7 +363,7 @@ exports.createRazorpayCustomer = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: customer
+      customer: customer
     });
   } catch (error) {
     console.error('Error creating Razorpay customer:', error);

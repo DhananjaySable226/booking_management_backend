@@ -218,14 +218,25 @@ exports.deleteBooking = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get user bookings
-// @route   GET /api/bookings/user
+// @desc    Get user bookings (for both users and service providers)
+// @route   GET /api/bookings/my-bookings
 // @access  Private
 exports.getUserBookings = asyncHandler(async (req, res, next) => {
-  const bookings = await Booking.find({ user: req.user.id })
-    .populate('service', 'name price images')
-    .populate('provider', 'name email avatar')
-    .sort('-createdAt');
+  let bookings;
+  
+  if (req.user.role === 'service_provider') {
+    // For service providers, get bookings where they are the provider
+    bookings = await Booking.find({ provider: req.user.id })
+      .populate('user', 'name email phone')
+      .populate('service', 'name price images')
+      .sort('-createdAt');
+  } else {
+    // For regular users, get bookings where they are the customer
+    bookings = await Booking.find({ user: req.user.id })
+      .populate('service', 'name price images')
+      .populate('provider', 'name email avatar')
+      .sort('-createdAt');
+  }
 
   res.status(200).json({
     success: true,

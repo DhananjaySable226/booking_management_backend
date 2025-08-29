@@ -84,8 +84,8 @@ router.post('/razorpay/customer', authorize('user'), createRazorpayCustomer);
 router.get('/history', authorize('user'), getPaymentHistory);
 router.get('/:paymentId', authorize('user', 'admin'), getPaymentDetails);
 
-// Admin routes
-router.get('/stats', authorize('admin'), getPaymentStats);
+// Statistics route (available to all authenticated users)
+router.get('/stats', protect, getPaymentStats);
 router.get('/', authorize('admin'), getAllPayments);
 router.get('/export', authorize('admin'), exportPayments);
 
