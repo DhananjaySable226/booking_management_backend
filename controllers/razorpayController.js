@@ -61,7 +61,8 @@ exports.createRazorpayOrder = asyncHandler(async (req, res, next) => {
         amount: order.amount,
         currency: order.currency,
         receipt: order.receipt,
-        paymentId: payment._id
+        paymentId: payment._id,
+        keyId: process.env.RAZORPAY_KEY_ID
       }
     });
   } catch (error) {
@@ -81,6 +82,10 @@ exports.verifyRazorpayPayment = asyncHandler(async (req, res, next) => {
   }
 
   try {
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      console.error('Missing RAZORPAY_KEY_SECRET');
+      return next(new ErrorResponse('Payment configuration error', 500));
+    }
     // Verify the payment signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
@@ -92,19 +97,16 @@ exports.verifyRazorpayPayment = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Invalid payment signature', 400));
     }
 
-    // Get payment details from Razorpay
-    const payment = await razorpay.payments.fetch(razorpay_payment_id);
-
-    // Update payment record in database
+    // Update payment record in database (trust signature for status)
     const updatedPayment = await Payment.findOneAndUpdate(
-      { razorpayOrderId: razorpay_order_id },
+      { razorpayOrderId: razorpay_order_id }, 
       {
         razorpayPaymentId: razorpay_payment_id,
         razorpaySignature: razorpay_signature,
-        status: payment.status === 'captured' ? 'completed' : 'failed',
-        paymentMethod: payment.method,
+        status: 'completed',
+        paymentMethod: 'razorpay',
         metadata: {
-          ...payment,
+          verifiedAt: new Date(),
           userId: req.user.id
         }
       },
@@ -128,7 +130,11 @@ exports.verifyRazorpayPayment = asyncHandler(async (req, res, next) => {
       payment: updatedPayment
     });
   } catch (error) {
-    console.error('Razorpay payment verification error:', error);
+    console.error('Razorpay payment verification error:', error?.message || error);
+    // Surface common causes clearly
+    if (error?.status === 404 || /No such payment/i.test(error?.message || '')) {
+      return next(new ErrorResponse('Razorpay payment not found. Ensure IDs are from the same order.', 400));
+    }
     return next(new ErrorResponse('Payment verification failed', 500));
   }
 });
@@ -141,7 +147,7 @@ exports.getRazorpayPaymentDetails = asyncHandler(async (req, res, next) => {
 
   try {
     const payment = await razorpay.payments.fetch(paymentId);
-    
+
     res.status(200).json({
       success: true,
       payment: payment

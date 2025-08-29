@@ -82,10 +82,12 @@ router.post('/razorpay/customer', authorize('user'), createRazorpayCustomer);
 
 // Generic payment data routes
 router.get('/history', authorize('user'), getPaymentHistory);
-router.get('/:paymentId', authorize('user', 'admin'), getPaymentDetails);
 
-// Statistics route (available to all authenticated users)
+// Statistics route (must be declared BEFORE dynamic :paymentId)
 router.get('/stats', protect, getPaymentStats);
+
+// Dynamic payment detail route
+router.get('/:paymentId', authorize('user', 'admin'), getPaymentDetails);
 router.get('/', authorize('admin'), getAllPayments);
 router.get('/export', authorize('admin'), exportPayments);
 
