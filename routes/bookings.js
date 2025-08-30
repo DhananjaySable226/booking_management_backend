@@ -8,6 +8,7 @@ const {
   updateBooking,
   deleteBooking,
   cancelBooking,
+  cancelBookingUser,
   getUserBookings,
   getProviderBookings,
   checkAvailability,
@@ -99,6 +100,8 @@ router.post('/', authorize('user'), createBookingValidation, checkValidation, cr
 router.get('/:id', authorize('user', 'service_provider', 'admin'), getBooking);
 router.put('/:id', authorize('user', 'service_provider', 'admin'), updateBookingValidation, checkValidation, updateBooking);
 router.post('/:id/cancel', authorize('user', 'service_provider', 'admin'), cancelBooking);
+// More permissive user-facing cancel endpoint
+router.post('/:id/cancel-user', authorize('user', 'service_provider', 'admin'), cancelBookingUser);
 router.post('/:id/rate', authorize('user'), ratingValidation, checkValidation, rateBooking);
 
 // Provider routes

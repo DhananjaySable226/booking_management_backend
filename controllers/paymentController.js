@@ -61,7 +61,7 @@ exports.getPaymentStats = asyncHandler(async (req, res, next) => {
 
   // Filter by user if not admin
   if (userId) {
-    matchConditions.user = mongoose.Types.ObjectId(userId);
+    matchConditions.user = new mongoose.Types.ObjectId(userId);
   }
 
   // Filter by date range if provided

@@ -287,7 +287,65 @@ exports.cancelBooking = asyncHandler(async (req, res, next) => {
   const cancellationFee = booking.calculateCancellationFee();
 
   booking.status = 'cancelled';
-  booking.cancelledBy = req.user.id;
+  // Set cancelledBy based on user role, not user ID
+  if (req.user.role === 'admin') {
+    booking.cancelledBy = 'admin';
+  } else if (req.user.role === 'provider') {
+    booking.cancelledBy = 'provider';
+  } else {
+    booking.cancelledBy = 'user';
+  }
+  booking.cancellationReason = req.body.reason;
+  booking.cancellationFee = cancellationFee;
+  booking.refundAmount = booking.totalAmount - cancellationFee;
+
+  await booking.save();
+
+  res.status(200).json({
+    success: true,
+    data: booking
+  });
+});
+
+// @desc    Cancel booking (user-friendly)
+//          - Always allow when status is 'pending'
+//          - Allow when 'confirmed' only if canBeCancelled() returns true
+// @route   POST /api/bookings/:id/cancel-user
+// @access  Private
+exports.cancelBookingUser = asyncHandler(async (req, res, next) => {
+  const booking = await Booking.findById(req.params.id);
+
+  if (!booking) {
+    return next(new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404));
+  }
+
+  // Make sure user owns booking or is admin/provider
+  if (booking.user.toString() !== req.user.id &&
+    booking.provider.toString() !== req.user.id &&
+    req.user.role !== 'admin') {
+    return next(new ErrorResponse(`User ${req.user.id} is not authorized to cancel this booking`, 401));
+  }
+
+  const status = booking.status;
+  const isPending = status === 'pending';
+  const isConfirmed = status === 'confirmed';
+
+  if (!(isPending || (isConfirmed && booking.canBeCancelled()))) {
+    return next(new ErrorResponse('Booking cannot be cancelled at this time', 400));
+  }
+
+  // Calculate fee only for confirmed bookings; pending incurs no fee
+  const cancellationFee = isConfirmed ? booking.calculateCancellationFee() : 0;
+
+  booking.status = 'cancelled';
+  // Set cancelledBy based on user role, not user ID
+  if (req.user.role === 'admin') {
+    booking.cancelledBy = 'admin';
+  } else if (req.user.role === 'provider') {
+    booking.cancelledBy = 'provider';
+  } else {
+    booking.cancelledBy = 'user';
+  }
   booking.cancellationReason = req.body.reason;
   booking.cancellationFee = cancellationFee;
   booking.refundAmount = booking.totalAmount - cancellationFee;
