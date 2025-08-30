@@ -29,6 +29,8 @@ exports.getDashboardStats = asyncHandler(async (req, res, next) => {
         { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
 
+
+
     const monthlyRevenue = await Payment.aggregate([
         { $match: { status: 'completed' } },
         {
@@ -178,7 +180,7 @@ exports.getBookingAnalytics = asyncHandler(async (req, res, next) => {
         };
     }
 
-    // Get booking trends
+    // Get booking trends (counts only)
     const bookingTrends = await Booking.aggregate([
         { $match: dateFilter },
         {
@@ -187,33 +189,30 @@ exports.getBookingAnalytics = asyncHandler(async (req, res, next) => {
                     year: { $year: '$createdAt' },
                     month: { $month: '$createdAt' }
                 },
-                count: { $sum: 1 },
-                totalAmount: { $sum: '$totalAmount' }
+                count: { $sum: 1 }
             }
         },
         { $sort: { '_id.year': -1, '_id.month': -1 } }
     ]);
 
-    // Get booking status distribution
+    // Get booking status distribution (counts only)
     const statusDistribution = await Booking.aggregate([
         { $match: dateFilter },
         {
             $group: {
                 _id: '$status',
-                count: { $sum: 1 },
-                totalAmount: { $sum: '$totalAmount' }
+                count: { $sum: 1 }
             }
         }
     ]);
 
-    // Get top services by bookings
+    // Get top services by bookings (counts only)
     const topServices = await Booking.aggregate([
         { $match: dateFilter },
         {
             $group: {
                 _id: '$service',
-                count: { $sum: 1 },
-                totalAmount: { $sum: '$totalAmount' }
+                count: { $sum: 1 }
             }
         },
         { $sort: { count: -1 } },
@@ -269,8 +268,7 @@ exports.getUserAnalytics = asyncHandler(async (req, res, next) => {
         {
             $group: {
                 _id: '$user',
-                bookingCount: { $sum: 1 },
-                totalSpent: { $sum: '$totalAmount' }
+                bookingCount: { $sum: 1 }
             }
         },
         { $sort: { bookingCount: -1 } },
