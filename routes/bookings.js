@@ -16,7 +16,10 @@ const {
   rateBooking,
   updateBookingStatus,
   getBookingStats,
-  exportBookings
+  exportBookings,
+  acceptBooking,
+  rejectBooking,
+  completeBooking
 } = require('../controllers/bookingController');
 
 const router = express.Router();
@@ -106,6 +109,9 @@ router.post('/:id/rate', authorize('user'), ratingValidation, checkValidation, r
 
 // Provider routes
 router.get('/provider/my-bookings', authorize('service_provider'), getProviderBookings);
+router.put('/:id/accept', authorize('service_provider'), acceptBooking);
+router.put('/:id/reject', authorize('service_provider'), rejectBooking);
+router.put('/:id/complete', authorize('service_provider'), completeBooking);
 
 // Admin routes
 router.get('/', authorize('admin'), getBookings);

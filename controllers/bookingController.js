@@ -446,9 +446,111 @@ exports.addBookingNote = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update booking status
+// @desc    Accept pending booking (Provider only)
+// @route   PUT /api/bookings/:id/accept
+// @access  Private (Service Provider)
+exports.acceptBooking = asyncHandler(async (req, res, next) => {
+  const booking = await Booking.findById(req.params.id);
+
+  if (!booking) {
+    return next(new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404));
+  }
+
+  // Make sure user is the provider for this booking
+  if (booking.provider.toString() !== req.user.id) {
+    return next(new ErrorResponse(`You are not authorized to accept this booking`, 401));
+  }
+
+  // Check if booking can be accepted
+  if (booking.status !== 'pending') {
+    return next(new ErrorResponse(`Only pending bookings can be accepted. Current status: ${booking.status}`, 400));
+  }
+
+  // Update booking status to confirmed
+  booking.status = 'confirmed';
+  await booking.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Booking accepted successfully',
+    data: booking
+  });
+});
+
+// @desc    Reject pending booking (Provider only)
+// @route   PUT /api/bookings/:id/reject
+// @access  Private (Service Provider)
+exports.rejectBooking = asyncHandler(async (req, res, next) => {
+  const booking = await Booking.findById(req.params.id);
+
+  if (!booking) {
+    return next(new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404));
+  }
+
+  // Make sure user is the provider for this booking
+  if (booking.provider.toString() !== req.user.id) {
+    return next(new ErrorResponse(`You are not authorized to reject this booking`, 401));
+  }
+
+  // Check if booking can be rejected
+  if (booking.status !== 'pending') {
+    return next(new ErrorResponse(`Only pending bookings can be rejected. Current status: ${booking.status}`, 400));
+  }
+
+  // Validate rejection reason
+  if (!req.body.reason || req.body.reason.trim().length === 0) {
+    return next(new ErrorResponse('Rejection reason is required', 400));
+  }
+
+  // Update booking status to cancelled
+  booking.status = 'cancelled';
+  booking.cancelledBy = 'provider';
+  booking.cancellationReason = req.body.reason;
+  booking.cancellationFee = 0; // No fee when provider rejects
+  booking.refundAmount = booking.totalAmount; // Full refund
+  await booking.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Booking rejected successfully',
+    data: booking
+  });
+});
+
+// @desc    Complete confirmed booking (Provider only)
+// @route   PUT /api/bookings/:id/complete
+// @access  Private (Service Provider)
+exports.completeBooking = asyncHandler(async (req, res, next) => {
+  const booking = await Booking.findById(req.params.id);
+
+  if (!booking) {
+    return next(new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404));
+  }
+
+  // Make sure user is the provider for this booking
+  if (booking.provider.toString() !== req.user.id) {
+    return next(new ErrorResponse(`You are not authorized to complete this booking`, 401));
+  }
+
+  // Check if booking can be completed
+  if (booking.status !== 'confirmed') {
+    return next(new ErrorResponse(`Only confirmed bookings can be completed. Current status: ${booking.status}`, 400));
+  }
+
+  // Update booking status to completed
+  booking.status = 'completed';
+  await booking.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Booking completed successfully',
+    data: booking
+  });
+});
+
+// @desc    Update booking status (Enhanced version)
 // @route   PUT /api/bookings/:id/status
-// @access  Private
+// @access  Private (Service Provider, Admin)
 exports.updateBookingStatus = asyncHandler(async (req, res, next) => {
   const booking = await Booking.findById(req.params.id);
 
@@ -461,11 +563,49 @@ exports.updateBookingStatus = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`User ${req.user.id} is not authorized to update this booking status`, 401));
   }
 
-  booking.status = req.body.status;
+  const { status, reason } = req.body;
+
+  // Validate status transition
+  const validTransitions = {
+    'pending': ['confirmed', 'cancelled'],
+    'confirmed': ['in_progress', 'completed', 'cancelled', 'no_show'],
+    'in_progress': ['completed', 'cancelled'],
+    'completed': [], // No further transitions
+    'cancelled': [], // No further transitions
+    'no_show': [] // No further transitions
+  };
+
+  if (!validTransitions[booking.status].includes(status)) {
+    return next(new ErrorResponse(`Invalid status transition from ${booking.status} to ${status}`, 400));
+  }
+
+  // Handle cancellation if status is being changed to cancelled
+  if (status === 'cancelled') {
+    if (!reason || reason.trim().length === 0) {
+      return next(new ErrorResponse('Cancellation reason is required', 400));
+    }
+
+    booking.cancelledBy = req.user.role === 'admin' ? 'admin' : 'provider';
+    booking.cancellationReason = reason;
+
+    // Calculate cancellation fee if applicable
+    if (booking.status === 'confirmed') {
+      const cancellationFee = booking.calculateCancellationFee();
+      booking.cancellationFee = cancellationFee;
+      booking.refundAmount = booking.totalAmount - cancellationFee;
+    } else {
+      booking.cancellationFee = 0;
+      booking.refundAmount = booking.totalAmount;
+    }
+  }
+
+  // Update status
+  booking.status = status;
   await booking.save();
 
   res.status(200).json({
     success: true,
+    message: `Booking status updated to ${status}`,
     data: booking
   });
 });
