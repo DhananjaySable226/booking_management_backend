@@ -38,15 +38,15 @@ exports.register = async (req, res, next) => {
     await user.save();
 
     // Send plain token in email
-    const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email/${verificationToken}`;
-    const message = `You are receiving this email because you registered for an account. Please verify your email by clicking on the link: \n\n ${verificationUrl}`;
+    // const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email/${verificationToken}`;
+    // const message = `You are receiving this email because you registered for an account. Please verify your email by clicking on the link: \n\n ${verificationUrl}`;
 
     try {
-      await sendEmail({
-        email: user.email,
-        subject: 'Email Verification',
-        message
-      });
+      // await sendEmail({
+      //   email: user.email,
+      //   subject: 'Email Verification',
+      //   message
+      // });
 
       res.status(201).json({
         success: true,
